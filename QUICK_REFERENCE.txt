@@ -1,0 +1,172 @@
+# 🎯 QUICK REFERENCE CARD
+
+## ☝️ ONE THING TO READ FIRST
+**→ Open and read: `RUN.txt`**
+
+5 minutes to running the app locally!
+
+---
+
+## 🚀 RUN IT LOCALLY (Right Now!)
+
+```bash
+export OPENROUTER_API_KEY="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"
+python3 app.py
+# → Open http://localhost:5001
+```
+
+---
+
+## 🌐 DEPLOY TO WEB
+
+**❌ Netlify/Vercel:** Won't work (not for Flask backends)
+
+**✅ Use Render instead:** (5 minutes)
+1. Push code to GitHub
+2. Go to render.com
+3. Connect repo
+4. Set `OPENROUTER_API_KEY` environment variable
+5. Deploy
+
+**Full guide: `DEPLOYMENT.md`**
+
+---
+
+## 📚 ALL DOCUMENTATION
+
+| File | What | When |
+|------|------|------|
+| `RUN.txt` | How to run it | NOW! |
+| `QUICKSTART.md` | Detailed setup | More options |
+| `DEPLOYMENT.md` | How to deploy | Ready for web |
+| `SETUP_COMPLETE.md` | Full summary | Overview |
+| `DOCUMENTATION.md` | Index | Navigate docs |
+
+---
+
+## 💬 SAMPLE QUESTIONS TO ASK
+
+• "Show me all sales orders"
+• "Which products have most billing?"
+• "Show me broken flows"
+• "Trace billing document 90504274"
+
+---
+
+## 🔧 BASIC COMMANDS
+
+```bash
+# Start
+python3 app.py
+
+# Stop
+Ctrl+C
+
+# Restart database
+python3 ingest.py
+
+# Kill stuck process
+pkill -f "python3 app.py"
+
+# Check health
+curl http://localhost:5001/api/health
+```
+
+---
+
+## ⚙️ CURRENT SETUP
+
+- **LLM:** OpenRouter (GPT-3.5-turbo)
+- **Database:** SQLite with 20,592 rows
+- **Graph:** 586 nodes, 531 edges
+- **Frontend:** Interactive Cytoscape.js UI
+- **Status:** ✅ FULLY WORKING
+
+---
+
+## ❓ WHY NOT NETLIFY/VERCEL?
+
+Netlify/Vercel are for **static sites only**:
+- ❌ No Flask server
+- ❌ No persistent database
+- ❌ No 24/7 uptime
+
+Your app needs a **real backend server**.
+
+**Better options:**
+1. Render (easiest) - $7/mo
+2. Railway - $5/mo
+3. Heroku - $7/mo
+4. Google Cloud Run - pay-per-use
+
+---
+
+## 📊 ARCHITECTURE
+
+```
+Dataset (JSONL)
+    ↓
+SQLite Database (data.db)
+    ↓
+    ├─→ Flask Backend (app.py)
+    │     ├─ LLM Integration (llm.py)
+    │     ├─ Graph Building (graph.py)
+    │     └─ API Endpoints
+    │
+    └─→ Frontend (index.html)
+          └─ Interactive UI (Cytoscape.js)
+```
+
+---
+
+## 🎓 LEARNING PATH
+
+1. **Read:** `RUN.txt` (5 min)
+2. **Run:** `python3 app.py` (2 min)
+3. **Explore:** Chat at http://localhost:5001 (10 min)
+4. **Read:** `DEPLOYMENT.md` (10 min)
+5. **Deploy:** Push to GitHub + Render (5 min)
+
+**Total: ~30 minutes to live on web!**
+
+---
+
+## 🚨 IF SOMETHING BREAKS
+
+1. Check terminal for error messages
+2. Read `RUN.txt` troubleshooting section
+3. Kill process: `pkill -f "python3 app.py"`
+4. Restart: `python3 app.py`
+
+**99% of issues:** API key not set or port in use
+
+---
+
+## ✨ WHAT'S WORKING
+
+✅ Database ingestion
+✅ Graph visualization
+✅ LLM SQL generation
+✅ Data analysis
+✅ Chat interface
+✅ API endpoints
+✅ Frontend rendering
+
+---
+
+## 🎉 YOU'RE DONE!
+
+Your Dodge AI application is:
+- ✅ Ready to use locally
+- ✅ Ready to deploy
+- ✅ Fully documented
+- ✅ Production-ready
+
+**Start here:** Read `RUN.txt`
+
+Questions? Check the docs! 📚
+
+---
+
+**Built with ❤️**
+Version 1.0 - March 26, 2026

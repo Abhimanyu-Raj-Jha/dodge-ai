@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dodge AI — Order to Cash</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#f5f5f3;--panel:#fff;--border:#e5e5e2;
+    --text:#1a1a18;--muted:#6b6b66;--accent:#1a1a18;
+    --blue:#378ADD;--green:#1D9E75;--purple:#7F77DD;
+    --amber:#BA7517;--coral:#D85A30;--pink:#993556;--teal:#0F6E56;
+    --sidebar:380px;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+  /* ── Topbar ── */
+  #topbar{height:48px;background:var(--panel);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;z-index:10}
+  #topbar .breadcrumb{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+  #topbar .breadcrumb .sep{color:var(--border)}
+  #topbar .breadcrumb .current{color:var(--text);font-weight:500}
+  #menu-btn{width:28px;height:28px;border:none;background:none;cursor:pointer;
+    display:flex;flex-direction:column;justify-content:center;gap:4px;padding:4px}
+  #menu-btn span{display:block;height:1.5px;background:var(--text);border-radius:1px}
+
+  /* ── Main layout ── */
+  #main{flex:1;display:flex;overflow:hidden;position:relative}
+
+  /* ── Graph canvas ── */
+  #graph-wrap{flex:1;position:relative;overflow:hidden}
+  #cy{width:100%;height:100%}
+
+  /* ── Graph toolbar ── */
+  #graph-toolbar{position:absolute;top:12px;left:12px;display:flex;gap:8px;z-index:5}
+  .tb-btn{height:32px;padding:0 12px;border:1px solid var(--border);background:var(--panel);
+    border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;color:var(--text);
+    display:flex;align-items:center;gap:6px;white-space:nowrap;transition:background .15s}
+  .tb-btn:hover{background:#f0f0ee}
+  .tb-btn.dark{background:var(--text);color:#fff;border-color:var(--text)}
+  .tb-btn.dark:hover{background:#333}
+
+  /* ── Legend ── */
+  #legend{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,.92);
+    border:1px solid var(--border);border-radius:8px;padding:10px 14px;z-index:5;
+    backdrop-filter:blur(4px)}
+  #legend h4{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;
+    text-transform:uppercase;letter-spacing:.5px}
+  .legend-item{display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:12px;color:var(--text)}
+  .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+  /* ── Node tooltip ── */
+  #tooltip{position:absolute;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:16px;min-width:260px;max-width:340px;
+    box-shadow:0 4px 24px rgba(0,0,0,.12);z-index:20;display:none;font-size:13px}
+  #tooltip h3{font-size:15px;font-weight:600;margin-bottom:10px;color:var(--text)}
+  .tt-row{display:flex;margin-bottom:4px;gap:8px}
+  .tt-key{font-weight:500;color:var(--text);min-width:120px;flex-shrink:0}
+  .tt-val{color:var(--muted);word-break:break-all}
+  .tt-hidden{color:var(--muted);font-style:italic;margin-top:6px;font-size:12px}
+  .tt-conn{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);
+    color:var(--muted);font-size:12px}
+
+  /* ── Right sidebar (chat) ── */
+  #sidebar{width:var(--sidebar);flex-shrink:0;background:var(--panel);
+    border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+  #sidebar-header{padding:16px;border-bottom:1px solid var(--border);flex-shrink:0}
+  #sidebar-header h2{font-size:14px;font-weight:600;color:var(--text)}
+  #sidebar-header p{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* ── Stats strip ── */
+  #stats-strip{padding:12px 16px;border-bottom:1px solid var(--border);
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;flex-shrink:0}
+  .stat-card{background:var(--bg);border-radius:6px;padding:8px 10px}
+  .stat-card .val{font-size:18px;font-weight:600;color:var(--text)}
+  .stat-card .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.4px;margin-top:1px}
+  .stat-card.alert .val{color:#D85A30}
+
+  /* ── Chat messages ── */
+  #messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+  .msg{display:flex;gap:10px;align-items:flex-start}
+  .msg.user{flex-direction:row-reverse}
+  .avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .avatar.ai{background:var(--text);color:#fff;font-size:11px}
+  .avatar.user{background:#e5e5e2;color:var(--text)}
+  .bubble{max-width:88%;padding:10px 13px;border-radius:10px;font-size:13px;
+    line-height:1.55;color:var(--text)}
+  .bubble.ai{background:var(--bg);border:1px solid var(--border)}
+  .bubble.user{background:var(--text);color:#fff}
+
+  /* SQL drawer inside AI bubble */
+  .sql-toggle{font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px;
+    display:inline-flex;align-items:center;gap:4px;user-select:none}
+  .sql-toggle:hover{color:var(--text)}
+  .sql-block{display:none;margin-top:6px;padding:8px 10px;background:#1a1a18;
+    color:#a8ff78;font-family:monospace;font-size:11px;border-radius:6px;
+    white-space:pre-wrap;word-break:break-all;line-height:1.5}
+  .results-count{font-size:11px;color:var(--muted);margin-top:4px}
+
+  /* Typing indicator */
+  .typing-dots{display:flex;gap:4px;align-items:center;padding:4px 0}
+  .typing-dots span{width:6px;height:6px;border-radius:50%;background:var(--muted);
+    animation:bounce .9s ease-in-out infinite}
+  .typing-dots span:nth-child(2){animation-delay:.15s}
+  .typing-dots span:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+
+  /* ── Chat input area ── */
+  #chat-bottom{padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0}
+  #status-line{display:flex;align-items:center;gap:6px;margin-bottom:8px;
+    font-size:12px;color:var(--muted)}
+  #status-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0}
+  #status-dot.loading{background:#f59e0b;animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  #input-row{display:flex;gap:8px;align-items:flex-end}
+  #chat-input{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 12px;
+    font-size:13px;color:var(--text);resize:none;outline:none;font-family:inherit;
+    line-height:1.4;max-height:120px;overflow-y:auto;transition:border .15s}
+  #chat-input:focus{border-color:#aaa}
+  #send-btn{width:36px;height:36px;border-radius:8px;background:var(--text);border:none;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;transition:background .15s}
+  #send-btn:hover{background:#444}
+  #send-btn:disabled{background:#ccc;cursor:default}
+  #send-btn svg{width:15px;height:15px}
+
+  /* ── Highlight pulse on graph ── */
+  @keyframes nodePulse{
+    0%{outline:0px solid rgba(220,85,30,.0)}
+    50%{outline:6px solid rgba(220,85,30,.5)}
+    100%{outline:0px solid rgba(220,85,30,.0)}
+  }
+
+  /* ── Broken flows panel ── */
+  #broken-panel{display:none;position:absolute;top:52px;left:12px;z-index:15;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    width:360px;max-height:420px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12)}
+  #broken-panel h3{font-size:13px;font-weight:600;padding:12px 14px;
+    border-bottom:1px solid var(--border);color:var(--coral);display:flex;
+    align-items:center;justify-content:space-between}
+  #broken-panel h3 button{background:none;border:none;cursor:pointer;
+    font-size:16px;color:var(--muted);line-height:1}
+  #broken-list{overflow-y:auto;max-height:360px}
+  .broken-row{padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;
+    transition:background .1s}
+  .broken-row:hover{background:var(--bg)}
+  .broken-row .so{font-weight:500;font-size:13px;color:var(--text)}
+  .broken-row .detail{font-size:11px;color:var(--muted);margin-top:2px}
+  .broken-row .amount{font-weight:600;font-size:12px;color:var(--coral)}
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar{width:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#d0d0cc;border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div id="topbar">
+  <button id="menu-btn" title="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="breadcrumb">
+    <span>Mapping</span>
+    <span class="sep">/</span>
+    <span class="current">Order to Cash</span>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- Graph area -->
+  <div id="graph-wrap">
+    <div id="cy"></div>
+
+    <!-- Toolbar -->
+    <div id="graph-toolbar">
+      <button class="tb-btn" id="btn-fit" title="Fit all nodes">⊞ Fit</button>
+      <button class="tb-btn dark" id="btn-overlay" title="Toggle node labels">
+        ⊟ Hide Granular Overlay
+      </button>
+      <button class="tb-btn" id="btn-broken" title="Show broken flows">
+        ⚠ Broken Flows
+      </button>
+      <button class="tb-btn" id="btn-reset-hl" title="Clear highlights" style="display:none">
+        ✕ Clear Highlights
+      </button>
+    </div>
+
+    <!-- Broken flows panel -->
+    <div id="broken-panel">
+      <h3>
+        <span>⚠ Broken O2C Flows</span>
+        <button onclick="document.getElementById('broken-panel').style.display='none'">×</button>
+      </h3>
+      <div id="broken-list">Loading…</div>
+    </div>
+
+    <!-- Node tooltip -->
+    <div id="tooltip"></div>
+
+    <!-- Legend -->
+    <div id="legend">
+      <h4>Node Types</h4>
+      <div class="legend-item"><span class="legend-dot" style="background:#1D9E75"></span>Customer</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#7F77DD"></span>Sales Order</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#378ADD"></span>Delivery</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#BA7517"></span>Billing Doc</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#D85A30"></span>Journal Entry</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#993556"></span>Payment</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#0F6E56"></span>Product</div>
+    </div>
+  </div>
+
+  <!-- Right sidebar: chat -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h2>Chat with Graph</h2>
+      <p>Order to Cash</p>
+    </div>
+
+    <!-- Stats strip -->
+    <div id="stats-strip">
+      <div class="stat-card">
+        <div class="val" id="stat-orders">—</div>
+        <div class="lbl">Sales Orders</div>
+      </div>
+      <div class="stat-card">
+        <div class="val" id="stat-billing">—</div>
+        <div class="lbl">Billing Docs</div>
+      </div>
+      <div class="stat-card alert">
+        <div class="val" id="stat-broken">—</div>
+        <div class="lbl">Broken Flows</div>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div id="messages">
+      <div class="msg ai">
+        <div class="avatar ai">D</div>
+        <div class="bubble ai">
+          Hi! I can help you analyze the <strong>Order to Cash</strong> process.
+          Try asking:<br><br>
+          • <em onclick="askSuggestion(this)" style="cursor:pointer;color:#378ADD">Which products have the most billing documents?</em><br>
+          • <em onclick="askSuggestion(this)" style="cursor:pointer;color:#378ADD">Show me broken flows — delivered but not billed</em><br>
+          • <em onclick="askSuggestion(this)" style="cursor:pointer;color:#378ADD">Trace billing document 90504274</em>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div id="chat-bottom">
+      <div id="status-line">
+        <div id="status-dot"></div>
+        <span id="status-text">Dodge AI is awaiting instructions</span>
+      </div>
+      <div id="input-row">
+        <textarea id="chat-input" rows="1" placeholder="Analyze anything…"></textarea>
+        <button id="send-btn" title="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let cy = null;
+let history = [];   // [{role: 'user'|'assistant', content: str}]
+let graphData = null;
+let labelsVisible = true;
+let pendingHighlights = [];
+
+// ═══════════════════════════════════════════════════════════════
+// GRAPH INIT
+// ═══════════════════════════════════════════════════════════════
+async function initGraph() {
+  try {
+    const res = await fetch('/api/graph');
+    graphData = await res.json();
+
+    cy = cytoscape({
+      container: document.getElementById('cy'),
+      elements: [...graphData.nodes, ...graphData.edges],
+      style: buildStyle(true),
+      layout: {
+        name: 'cose',
+        animate: false,
+        randomize: false,
+        nodeRepulsion: () => 800000,
+        idealEdgeLength: () => 80,
+        gravity: 0.1,
+        numIter: 500,
+        fit: true,
+        padding: 40,
+        nodeDimensionsIncludeLabels: true,
+      },
+      minZoom: 0.05,
+      maxZoom: 4,
+      wheelSensitivity: 0.3,
+    });
+
+    attachCyEvents();
+    console.log('Graph loaded:', graphData.summary);
+  } catch(e) {
+    console.error('Graph init failed:', e);
+  }
+}
+
+function buildStyle(showLabels) {
+  return [
+    {
+      selector: 'node',
+      style: {
+        'background-color': 'data(color)',
+        'label': showLabels ? 'data(label)' : '',
+        'color': '#fff',
+        'font-size': 9,
+        'font-weight': 500,
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'text-outline-width': 1.5,
+        'text-outline-color': 'data(color)',
+        'width': 'data(size)',
+        'height': 'data(size)',
+        'border-width': 0,
+        'transition-property': 'border-width, border-color, background-color, width, height',
+        'transition-duration': '0.2s',
+        'overlay-opacity': 0,
+      }
+    },
+    {
+      selector: 'node:hover',
+      style: {
+        'border-width': 2.5,
+        'border-color': '#fff',
+        'cursor': 'pointer',
+      }
+    },
+    {
+      selector: 'edge',
+      style: {
+        'curve-style': 'bezier',
+        'target-arrow-shape': 'triangle',
+        'line-color': '#c8c8c4',
+        'target-arrow-color': '#c8c8c4',
+        'width': 0.8,
+        'opacity': 0.7,
+        'overlay-opacity': 0,
+      }
+    },
+    {
+      selector: '.highlighted',
+      style: {
+        'border-width': 3,
+        'border-color': '#ff4444',
+        'width': e => (parseFloat(e.data('size')) || 14) * 1.8,
+        'height': e => (parseFloat(e.data('size')) || 14) * 1.8,
+        'z-index': 999,
+      }
+    },
+    {
+      selector: '.dimmed',
+      style: { 'opacity': 0.15 }
+    },
+    {
+      selector: '.focused-edge',
+      style: {
+        'line-color': '#378ADD',
+        'target-arrow-color': '#378ADD',
+        'width': 2,
+        'opacity': 1,
+        'z-index': 100,
+      }
+    }
+  ];
+}
+
+function attachCyEvents() {
+  // Node click → tooltip + neighbourhood highlight
+  cy.on('tap', 'node', function(evt) {
+    const node = evt.target;
+    showTooltip(node, evt.renderedPosition);
+    highlightNeighbourhood(node);
+  });
+
+  // Background click → reset
+  cy.on('tap', function(evt) {
+    if (evt.target === cy) {
+      hideTooltip();
+      resetHighlight();
+    }
+  });
+
+  // Drag → hide tooltip
+  cy.on('drag', () => hideTooltip());
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOOLTIP
+// ═══════════════════════════════════════════════════════════════
+function showTooltip(node, pos) {
+  const d = node.data();
+  const tt = document.getElementById('tooltip');
+
+  // Fields to always skip in display
+  const SKIP = new Set(['id','type','label','color','size']);
+  const entries = Object.entries(d).filter(([k,v]) => !SKIP.has(k) && v != null && v !== '' && v !== 'null' && v !== 'None');
+  const show = entries.slice(0, 12);
+  const hidden = entries.length - show.length;
+
+  const connCount = node.connectedEdges().length;
+
+  tt.innerHTML = `
+    <h3>${d.type || 'Node'}</h3>
+    ${show.map(([k,v]) => `<div class="tt-row">
+      <span class="tt-key">${camelToLabel(k)}:</span>
+      <span class="tt-val">${formatVal(k, v)}</span>
+    </div>`).join('')}
+    ${hidden > 0 ? `<div class="tt-hidden">Additional fields hidden for readability</div>` : ''}
+    <div class="tt-conn">Connections: ${connCount}</div>
+  `;
+
+  // Position: keep within viewport
+  const wrap = document.getElementById('graph-wrap');
+  const ww = wrap.offsetWidth, wh = wrap.offsetHeight;
+  let x = pos.x + 14, y = pos.y - 10;
+  tt.style.display = 'block';
+  const tw = tt.offsetWidth, th = tt.offsetHeight;
+  if (x + tw > ww - 10) x = pos.x - tw - 14;
+  if (y + th > wh - 10) y = wh - th - 10;
+  tt.style.left = x + 'px';
+  tt.style.top  = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+function camelToLabel(s) {
+  return s.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+}
+
+function formatVal(key, val) {
+  if (val === 'True') return '✓ Yes';
+  if (val === 'False') return '✗ No';
+  if (key.toLowerCase().includes('date') && val.includes('T'))
+    return val.split('T')[0];
+  if (key.toLowerCase().includes('amount') && !isNaN(val))
+    return parseFloat(val).toLocaleString('en-IN', {maximumFractionDigits:2});
+  return String(val).substring(0, 80);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NEIGHBOURHOOD HIGHLIGHT
+// ═══════════════════════════════════════════════════════════════
+function highlightNeighbourhood(node) {
+  cy.elements().removeClass('highlighted dimmed focused-edge');
+  const hood = node.closedNeighborhood();
+  const rest = cy.elements().not(hood);
+  rest.addClass('dimmed');
+  node.addClass('highlighted');
+  hood.edges().addClass('focused-edge');
+  document.getElementById('btn-reset-hl').style.display = 'flex';
+}
+
+function resetHighlight() {
+  if (!cy) return;
+  cy.elements().removeClass('highlighted dimmed focused-edge');
+  document.getElementById('btn-reset-hl').style.display = 'none';
+  hideTooltip();
+}
+
+function highlightNodeIds(ids) {
+  if (!cy || !ids.length) return;
+  cy.elements().removeClass('highlighted dimmed focused-edge');
+
+  const matched = cy.nodes().filter(n => {
+    const d = n.data();
+    // Try full ID match first, then partial suffix match
+    return ids.includes(d.id) ||
+      ids.some(id => d.id.endsWith('_' + id.split('_').pop()));
+  });
+
+  if (matched.length) {
+    const rest = cy.elements().not(matched.closedNeighborhood());
+    rest.addClass('dimmed');
+    matched.addClass('highlighted');
+    matched.closedNeighborhood().edges().addClass('focused-edge');
+
+    // Pan to first highlighted node
+    cy.animate({ fit: { eles: matched, padding: 80 }, duration: 600, easing: 'ease-in-out-quad' });
+    document.getElementById('btn-reset-hl').style.display = 'flex';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════════════════════
+async function loadStats() {
+  try {
+    const res = await fetch('/api/stats');
+    const d = await res.json();
+    document.getElementById('stat-orders').textContent = d.sales_order_headers || 0;
+    document.getElementById('stat-billing').textContent = d.billing_documents || 0;
+    document.getElementById('stat-broken').textContent = d.broken_flows || 0;
+  } catch(e) { console.error('Stats failed:', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BROKEN FLOWS PANEL
+// ═══════════════════════════════════════════════════════════════
+async function loadBrokenFlows() {
+  const panel = document.getElementById('broken-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if (panel.style.display === 'none') return;
+
+  const list = document.getElementById('broken-list');
+  list.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:13px">Loading…</div>';
+
+  try {
+    const res = await fetch('/api/broken-flows');
+    const rows = await res.json();
+    if (!rows.length) {
+      list.innerHTML = '<div style="padding:12px 14px;font-size:13px">No broken flows found.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(r => `
+      <div class="broken-row" onclick="focusSO('${r.salesOrder}')">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span class="so">SO-${r.salesOrder}</span>
+          <span class="amount">₹${parseFloat(r.totalNetAmount||0).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>
+        </div>
+        <div class="detail">
+          ${r.customerName || r.soldToParty} · Delivered, not billed ·
+          ${(r.creationDate||'').split('T')[0]}
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="padding:12px 14px;color:red;font-size:13px">Failed to load</div>';
+  }
+}
+
+function focusSO(soId) {
+  if (!cy) return;
+  document.getElementById('broken-panel').style.display = 'none';
+  const node = cy.nodes().filter(n => n.data('id') === `SO_${soId}`);
+  if (node.length) {
+    highlightNeighbourhood(node.first());
+    cy.animate({ fit: { eles: node.closedNeighborhood(), padding: 80 }, duration: 600 });
+    showTooltip(node.first(), { x: 300, y: 200 });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════════════════════════════
+function setStatus(loading) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  const btn = document.getElementById('send-btn');
+  if (loading) {
+    dot.className = 'loading';
+    txt.textContent = 'Dodge AI is thinking…';
+    btn.disabled = true;
+  } else {
+    dot.className = '';
+    txt.textContent = 'Dodge AI is awaiting instructions';
+    btn.disabled = false;
+  }
+}
+
+function appendMessage(role, content, meta) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role === 'user' ? 'user' : 'ai'}`;
+
+  const avatar = `<div class="avatar ${role === 'user' ? 'user' : 'ai'}">${role === 'user' ? '👤' : 'D'}</div>`;
+
+  let bubbleContent = content.replace(/\n/g, '<br>');
+
+  // Append SQL toggle + results count for AI messages
+  let sqlHtml = '';
+  if (meta && meta.sql) {
+    const sqlId = 'sql_' + Date.now();
+    sqlHtml = `
+      <div class="sql-toggle" onclick="toggleSQL('${sqlId}')">
+        <span>▶</span> View SQL
+      </div>
+      <div class="sql-block" id="${sqlId}">${escHtml(meta.sql)}</div>
+    `;
+  }
+  let countHtml = '';
+  if (meta && meta.row_count !== undefined) {
+    countHtml = `<div class="results-count">${meta.row_count} rows returned</div>`;
+  }
+
+  div.innerHTML = `
+    ${role !== 'user' ? avatar : ''}
+    <div class="bubble ${role === 'user' ? 'user' : 'ai'}">
+      ${bubbleContent}
+      ${sqlHtml}
+      ${countHtml}
+    </div>
+    ${role === 'user' ? avatar : ''}
+  `;
+
+  // Remove typing indicator if present
+  const typing = msgs.querySelector('.typing-indicator');
+  if (typing) typing.remove();
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendTyping() {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai typing-indicator';
+  div.innerHTML = `
+    <div class="avatar ai">D</div>
+    <div class="bubble ai">
+      <div class="typing-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function toggleSQL(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const toggle = el.previousElementSibling;
+  const visible = el.style.display === 'block';
+  el.style.display = visible ? 'none' : 'block';
+  toggle.querySelector('span').textContent = visible ? '▶' : '▼';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function sendMessage(text) {
+  text = (text || '').trim();
+  if (!text) return;
+
+  appendMessage('user', text);
+  history.push({ role: 'user', content: text });
+
+  const input = document.getElementById('chat-input');
+  input.value = '';
+  input.style.height = 'auto';
+
+  setStatus(true);
+  appendTyping();
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history: history.slice(-6) })
+    });
+    const data = await res.json();
+
+    appendMessage('assistant', data.answer, {
+      sql: data.sql,
+      row_count: data.row_count
+    });
+    history.push({ role: 'assistant', content: data.answer });
+
+    // Highlight referenced nodes in graph
+    if (data.highlight_ids && data.highlight_ids.length > 0) {
+      setTimeout(() => highlightNodeIds(data.highlight_ids), 300);
+    }
+  } catch(e) {
+    appendMessage('assistant', '⚠ Network error. Please check the server is running.');
+  } finally {
+    setStatus(false);
+  }
+}
+
+function askSuggestion(el) {
+  sendMessage(el.textContent);
+}
+
+// Auto-resize textarea
+document.getElementById('chat-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+document.getElementById('chat-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage(this.value);
+  }
+});
+
+document.getElementById('send-btn').addEventListener('click', () => {
+  sendMessage(document.getElementById('chat-input').value);
+});
+
+// ═══════════════════════════════════════════════════════════════
+// TOOLBAR BUTTONS
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-fit').addEventListener('click', () => {
+  cy && cy.fit(undefined, 40);
+});
+
+document.getElementById('btn-overlay').addEventListener('click', function() {
+  labelsVisible = !labelsVisible;
+  this.textContent = (labelsVisible ? '⊟ Hide' : '⊞ Show') + ' Granular Overlay';
+  cy && cy.style(buildStyle(labelsVisible));
+});
+
+document.getElementById('btn-broken').addEventListener('click', loadBrokenFlows);
+document.getElementById('btn-reset-hl').addEventListener('click', resetHighlight);
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+Promise.all([initGraph(), loadStats()]);
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: dodge-ai
+    runtime: python
+    runtimeVersion: 3.11.0
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 4 -b 0.0.0.0:$PORT app:app
+    envVars:
+      - key: OPENROUTER_API_KEY
+        scope: build,runtime
+        sync: false
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
