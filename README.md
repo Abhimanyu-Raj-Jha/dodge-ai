@@ -2,8 +2,8 @@
 
 A context graph system with LLM-powered natural language query interface for SAP Order-to-Cash ERP data.
 
-**Live Demo:** [your-render-url]  
-**GitHub:** [your-repo]
+**Live Demo:** https://dodge-ai-sy4w.onrender.com/
+**GitHub:** https://github.com/Abhimanyu-Raj-Jha/dodge-ai
 
 ---
 
