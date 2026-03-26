@@ -24,8 +24,8 @@ RUN python3 ingest.py
 EXPOSE 5001
 
 ENV PYTHONUNBUFFERED=1
-ENV OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-ENV PORT=5001
+ENV PYTHONPATH=/app
 
-# Start Flask with gunicorn
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "app:app"]
+# Start Flask with gunicorn on port 5001
+# Railway will forward traffic to this port
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "--timeout", "120", "app:app"]
